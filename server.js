@@ -15,6 +15,7 @@ async function enviarWhatsApp(phone, code) {
   try {
     // Remove qualquer caractere não numérico (incluindo '+', espaços, traços)
     const phoneDigits = String(phone).replace(/\D/g, '');
+    console.log('Número enviado para a API do WhatsApp:', phoneDigits);
     await axios.post(url, {
       messaging_product: 'whatsapp',
       to: phoneDigits,
@@ -39,6 +40,7 @@ const otcs = {};
 // Endpoint para solicitar OTC (One Time Code)
 app.post('/request-otc', async (req, res) => {
   const { phone } = req.body;
+  console.log('Número recebido no /request-otc:', phone);
   const code = Math.floor(100000 + Math.random() * 900000); // 6 dígitos
   // Salva o código com expiração de 5 minutos
   otcs[phone] = { code, expires: Date.now() + 5 * 60 * 1000 };
