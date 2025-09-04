@@ -13,9 +13,11 @@ async function enviarWhatsApp(phone, code) {
   const url = `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`;
 
   try {
+    // Remove qualquer caractere não numérico (incluindo '+', espaços, traços)
+    const phoneDigits = String(phone).replace(/\D/g, '');
     await axios.post(url, {
       messaging_product: 'whatsapp',
-      to: phone,
+      to: phoneDigits,
       type: 'text',
       text: { body: `Seu código de verificação Tokstar é: *${code}*\nNão compartilhe com ninguém.` }
     }, {
