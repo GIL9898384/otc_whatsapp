@@ -17,7 +17,7 @@ async function enviarWhatsApp(phone, code) {
       messaging_product: 'whatsapp',
       to: phone,
       type: 'text',
-      text: { body: `Seu código OTC é: ${code}` }
+      text: { body: `Seu código de verificação Tokstar é: *${code}*\nNão compartilhe com ninguém.` }
     }, {
       headers: {
         'Authorization': `Bearer ${token}`,
