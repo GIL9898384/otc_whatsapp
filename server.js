@@ -1,16 +1,4 @@
-// Exemplo de rota OTC
-app.post('/api/otc/request', async (req, res) => {
-  const { phone } = req.body;
-  if (!phone) {
-    return res.status(400).json({ success: false, message: 'Telefone obrigatório.' });
-  }
-  // Gera código aleatório de 6 dígitos
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
-  // Aqui você enviaria o código via WhatsApp (simulado)
-  console.log(`[OTC] Código gerado para ${phone}: ${code}`);
-  // Salva o código em algum storage/memória se necessário
-  res.status(200).json({ success: true, code });
-});
+// ...essa rota será definida após a inicialização do Express...
 require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
