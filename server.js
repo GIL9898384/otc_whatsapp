@@ -43,6 +43,8 @@ app.post('/request-otc', async (req, res) => {
   const { phone } = req.body;
   console.log('Número recebido no /request-otc:', phone);
   const code = Math.floor(100000 + Math.random() * 900000); // 6 dígitos
+  // Log explícito do código gerado
+  console.log(`[OTC] Código gerado para ${phone}: ${code}`);
   // Salva o código com expiração de 5 minutos
   otcs[phone] = { code, expires: Date.now() + 5 * 60 * 1000 };
   // Envia o código via WhatsApp
