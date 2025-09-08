@@ -20,8 +20,19 @@ async function enviarWhatsApp(phone, code) {
     await axios.post(url, {
       messaging_product: 'whatsapp',
       to: phoneDigits,
-      type: 'text',
-      text: { body: `Seu código de verificação Tokstar é: *${code}*\nNão compartilhe com ninguém.` }
+      type: 'template',
+      template: {
+        name: 'codigo_verificacao',
+        language: { code: 'pt_BR' },
+        components: [
+          {
+            type: 'body',
+            parameters: [
+              { type: 'text', text: String(code) }
+            ]
+          }
+        ]
+      }
     }, {
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -50,7 +61,7 @@ app.post('/request-otc', async (req, res) => {
   // Envia o código via WhatsApp
   const enviado = await enviarWhatsApp(phone, code);
   if (enviado) {
-    res.json({ success: true, message: 'Código enviado via WhatsApp', code });
+    res.json({ success: true, message: 'Código enviado via WhatsApp' });
   } else {
     res.status(500).json({ success: false, message: 'Falha ao enviar WhatsApp' });
   }
