@@ -36,7 +36,7 @@ async function enviarWhatsApp(phone, code) {
             sub_type: 'url',
             index: 0,
             parameters: [
-              { type: 'text', text: 'https://www.google.com' }
+              { type: 'text', text: 'codigo' }
             ]
           }
         ]
