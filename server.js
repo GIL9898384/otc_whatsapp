@@ -30,6 +30,14 @@ async function enviarWhatsApp(phone, code) {
             parameters: [
               { type: 'text', text: String(code) }
             ]
+          },
+          {
+            type: 'button',
+            sub_type: 'url',
+            index: 0,
+            parameters: [
+              { type: 'text', text: 'https://www.google.com' }
+            ]
           }
         ]
       }
