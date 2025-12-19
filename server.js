@@ -8,14 +8,13 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 
 // Conexão MongoDB
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/liusocial', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-}).then(() => {
-  console.log('✅ Conectado ao MongoDB');
-}).catch(err => {
-  console.error('❌ Erro ao conectar MongoDB:', err);
-});
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/liusocial')
+  .then(() => {
+    console.log('✅ Conectado ao MongoDB');
+  })
+  .catch(err => {
+    console.error('❌ Erro ao conectar MongoDB:', err);
+  });
 
 // Schema para Vídeos
 const videoSchema = new mongoose.Schema({
@@ -32,6 +31,7 @@ const videoSchema = new mongoose.Schema({
   tags: [String],
   views: { type: Number, default: 0 },
   likes: { type: Number, default: 0 },
+  consumed: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
@@ -112,9 +112,17 @@ async function fetchVideosFromPexels(query = 'party', perPage = 15, page = 1) {
   }
 }
 
-// Função para salvar vídeos no MongoDB
+// Função para salvar vídeos no MongoDB (apenas 9x16)
 async function saveVideoToDatabase(videoData) {
   try {
+    // Filtrar apenas vídeos verticais (9x16)
+    const aspectRatio = videoData.width / videoData.height;
+    const isVertical = aspectRatio < 0.7; // 9/16 = 0.5625
+    
+    if (!isVertical) {
+      return null;
+    }
+    
     const videoFile = videoData.video_files.find(file => file.quality === 'hd' || file.quality === 'sd');
     
     const video = new Video({
@@ -135,28 +143,66 @@ async function saveVideoToDatabase(videoData) {
     return video;
   } catch (error) {
     if (error.code === 11000) {
-      // Vídeo já existe (duplicate pexelsId)
       return null;
     }
     throw error;
   }
 }
 
+// Auto-sync: manter 200 vídeos
+async function autoSyncVideos() {
+  try {
+    const count = await Video.countDocuments({ consumed: false });
+    console.log(`📊 Vídeos disponíveis: ${count}/200`);
+    
+    if (count < 50) {
+      console.log('🔄 Iniciando auto-sync...');
+      const queries = ['party', 'dance', 'music', 'celebration', 'fun'];
+      let totalSaved = 0;
+      
+      for (const query of queries) {
+        for (let page = 1; page <= 5; page++) {
+          const current = await Video.countDocuments({ consumed: false });
+          if (current >= 200) break;
+          
+          try {
+            const pexelsData = await fetchVideosFromPexels(query, 15, page);
+            for (const videoData of pexelsData.videos) {
+              const result = await saveVideoToDatabase(videoData);
+              if (result) totalSaved++;
+            }
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          } catch (error) {
+            console.error(`❌ Erro ${query} p${page}:`, error.message);
+          }
+        }
+      }
+      console.log(`✅ Auto-sync: ${totalSaved} vídeos 9x16 adicionados`);
+    }
+  } catch (error) {
+    console.error('❌ Erro no auto-sync:', error);
+  }
+}
+
 // ===== ENDPOINTS DE VÍDEOS =====
 
-// GET /api/videos - Buscar vídeos com paginação
+// GET /api/videos - Buscar vídeos não consumidos
 app.get('/api/videos', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
 
-    const videos = await Video.find()
+    const videos = await Video.find({ consumed: false })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
 
-    const total = await Video.countDocuments();
+    const total = await Video.countDocuments({ consumed: false });
+
+    if (total < 50) {
+      autoSyncVideos();
+    }
 
     res.json({
       success: true,
@@ -227,18 +273,28 @@ app.post('/api/videos/sync', async (req, res) => {
   }
 });
 
-// POST /api/videos/:id/view - Incrementar visualizações
+// POST /api/videos/:id/view - Marcar como consumido
 app.post('/api/videos/:id/view', async (req, res) => {
   try {
     const video = await Video.findByIdAndUpdate(
       req.params.id,
-      { $inc: { views: 1 } },
+      { $inc: { views: 1 }, consumed: true },
       { new: true }
     );
 
     if (!video) {
       return res.status(404).json({ success: false, message: 'Vídeo não encontrado' });
     }
+
+    // Limpar vídeos consumidos com +7 dias
+    Video.deleteMany({
+      consumed: true,
+      createdAt: { $lt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
+    }).then(result => {
+      if (result.deletedCount > 0) {
+        console.log(`🗑️ ${result.deletedCount} vídeos antigos removidos`);
+      }
+    });
 
     res.json({ success: true, views: video.views });
   } catch (error) {
