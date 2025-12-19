@@ -273,6 +273,20 @@ app.post('/api/videos/sync', async (req, res) => {
   }
 });
 
+// POST /api/videos/auto-sync - Forçar auto-sync até 200 vídeos
+app.post('/api/videos/auto-sync', async (req, res) => {
+  try {
+    const count = await Video.countDocuments({ consumed: false });
+    res.json({ success: true, message: 'Auto-sync iniciado em background', current: count });
+    
+    // Executa em background
+    autoSyncVideos();
+  } catch (error) {
+    console.error('❌ Erro ao iniciar auto-sync:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // POST /api/videos/:id/view - Marcar como consumido
 app.post('/api/videos/:id/view', async (req, res) => {
   try {
