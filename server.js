@@ -136,7 +136,7 @@ async function saveVideoToDatabase(videoData) {
         name: videoData.user.name,
         url: videoData.user.url
       },
-      tags: videoData.tags ? videoData.tags.split(',').map(tag => tag.trim()) : []
+      tags: Array.isArray(videoData.tags) ? videoData.tags : (typeof videoData.tags === 'string' ? videoData.tags.split(',').map(tag => tag.trim()) : [])
     });
 
     await video.save();
