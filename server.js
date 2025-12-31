@@ -85,136 +85,50 @@ async function enviarWhatsApp(phone, code) {
   }
 }
 
-// Função para buscar vídeos da Pexels API
-async function fetchVideosFromPexels(query = 'party', perPage = 15, page = 1) {
-  const PEXELS_API_KEY = process.env.PEXELS_API_KEY;
-  
-  if (!PEXELS_API_KEY) {
-    throw new Error('PEXELS_API_KEY não configurada no .env');
-  }
-
+// Função para buscar vídeos reais do MongoDB (collection Posts)
+async function fetchVideosFromMongoDB(limit = 15, skip = 0) {
   try {
-    const response = await axios.get('https://api.pexels.com/videos/search', {
-      headers: {
-        'Authorization': PEXELS_API_KEY
-      },
-      params: {
-        query,
-        per_page: perPage,
-        page
-      }
-    });
-
-    return response.data;
+    // Buscar posts que são vídeos
+    const posts = await Video.findOne().lean().exec(); // Teste de conexão
+    
+    // Buscar vídeos do fake_api
+    const response = await axios.get('https://fake-api-backend-no5q.onrender.com/api/posts/feed?limit=' + limit + '&skip=' + skip);
+    
+    if (response.data?.posts) {
+      console.log(`[VIDEOS_MONGODB] ✅ ${response.data.posts.length} vídeos encontrados`);
+      return response.data.posts.filter(post => post.mediaType === 'video');
+    }
+    
+    return [];
   } catch (error) {
-    console.error('❌ Erro ao buscar vídeos da Pexels:', error.response?.data || error.message);
+    console.error('[VIDEOS_MONGODB] ❌ Erro ao buscar vídeos:', error.message);
     throw error;
-  }
-}
-
-// Função para salvar vídeos no MongoDB (apenas 9x16)
-async function saveVideoToDatabase(videoData) {
-  try {
-    // Filtrar apenas vídeos verticais (9x16)
-    const aspectRatio = videoData.width / videoData.height;
-    const isVertical = aspectRatio < 0.7; // 9/16 = 0.5625
-    
-    if (!isVertical) {
-      return null;
-    }
-    
-    const videoFile = videoData.video_files.find(file => file.quality === 'hd' || file.quality === 'sd');
-    
-    const video = new Video({
-      pexelsId: videoData.id,
-      url: videoFile?.link || videoData.video_files[0].link,
-      thumbnail: videoData.image,
-      duration: videoData.duration,
-      width: videoData.width,
-      height: videoData.height,
-      user: {
-        name: videoData.user.name,
-        url: videoData.user.url
-      },
-      tags: Array.isArray(videoData.tags) ? videoData.tags : (typeof videoData.tags === 'string' ? videoData.tags.split(',').map(tag => tag.trim()) : [])
-    });
-
-    await video.save();
-    return video;
-  } catch (error) {
-    if (error.code === 11000) {
-      return null;
-    }
-    throw error;
-  }
-}
-
-// Auto-sync: manter 200 vídeos
-async function autoSyncVideos() {
-  try {
-    const count = await Video.countDocuments({ consumed: false });
-    console.log(`📊 Vídeos disponíveis: ${count}/200`);
-    
-    if (count < 50) {
-      console.log('🔄 Iniciando auto-sync...');
-      const queries = ['party', 'dance', 'music', 'celebration', 'fun'];
-      let totalSaved = 0;
-      
-      for (const query of queries) {
-        for (let page = 1; page <= 5; page++) {
-          const current = await Video.countDocuments({ consumed: false });
-          if (current >= 200) break;
-          
-          try {
-            const pexelsData = await fetchVideosFromPexels(query, 15, page);
-            for (const videoData of pexelsData.videos) {
-              const result = await saveVideoToDatabase(videoData);
-              if (result) totalSaved++;
-            }
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          } catch (error) {
-            console.error(`❌ Erro ${query} p${page}:`, error.message);
-          }
-        }
-      }
-      console.log(`✅ Auto-sync: ${totalSaved} vídeos 9x16 adicionados`);
-    }
-  } catch (error) {
-    console.error('❌ Erro no auto-sync:', error);
   }
 }
 
 // ===== ENDPOINTS DE VÍDEOS =====
 
-// GET /api/videos - Buscar vídeos não consumidos
+// GET /api/videos - Buscar vídeos reais de usuários (do fake_api)
 app.get('/api/videos', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
 
-    const videos = await Video.find({ consumed: false })
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
-
-    const total = await Video.countDocuments({ consumed: false });
-
-    if (total < 50) {
-      autoSyncVideos();
-    }
+    // Buscar vídeos reais do fake_api
+    const videosReais = await fetchVideosFromMongoDB(limit, skip);
 
     res.json({
       success: true,
       page,
       limit,
-      total,
-      totalPages: Math.ceil(total / limit),
-      videos
+      total: videosReais.length,
+      videos: videosReais,
+      source: 'real_users'
     });
   } catch (error) {
-    console.error('❌ Erro ao buscar vídeos:', error);
-    res.status(500).json({ success: false, message: 'Erro ao buscar vídeos' });
+    console.error('[API_VIDEOS] ❌ Erro:', error.message);
+    res.status(500).json({ success: false, message: 'Erro ao buscar vídeos reais' });
   }
 });
 
